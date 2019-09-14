@@ -44,10 +44,11 @@ my $usage = "lxamiga by Mark Street <marksmanuk\@gmail.com>\n\nUsage: lxamiga [o
 	"\t-r read file <device:volume/path>\n".
 	"\t-s send file <file> <device:volume/path>\n".
 	"\t-u <file> delete file\n".
+	"\t-m <dir> mkdir\n".
 	"\t-f <device> Name format disk\n".
 	"\t-w <file> write output to filename\n".
 	"\t-v Verbose\n";
-getopts("tld:r:s:u:f:w:vb:", \%args) || die $usage;
+getopts("tld:r:s:u:f:w:vb:m:", \%args) || die $usage;
 
 if ($args{b})
 {
@@ -61,6 +62,7 @@ get_directory($args{d})	        if $args{d};
 get_file($args{r}, $ARGV[0])    if $args{r};
 put_file($args{s}, $ARGV[0])    if $args{s};
 del_file($args{u})              if $args{u};
+make_dir($args{m})              if $args{m};
 format_disk($args{f})           if $args{f};
 finalise();
 
@@ -733,6 +735,46 @@ sub del_file
 
 	send_close();
 	print "File deleted.\n";
+}
+
+sub make_dir
+{
+	my $dir = shift || die "Unspecified directory name";
+
+	my $dtime = (timegm(0,0,0,(localtime)[3,4,5])-timelocal(0,0,0,(localtime)[3,4,5]))/60;
+	#my $modify = (stat($dir))[9];
+	my $modify = time();
+	my $date = ($modify-(2922*24*60*60))/60/60/24;	# Hours since 1/1/78
+	my $time = (($modify/60)%1440)+$dtime;			# Mins since midnight, local
+
+	# Construct message:
+	my $filename = $dir.pack "NC", 0, 0;
+
+	my $msg = pack "N", length($filename) + 29;		# Header size
+	$msg .= pack "N", 0;         					# File size in bytes
+	$msg .= pack "N", 0;							# ???
+	$msg .= pack "N", 0x00000000;					# Attributes
+	$msg .= pack "NN", $date, $time;				# Date & Time
+	$msg .= pack "N", 0x00000000;					# ctime ref
+	$msg .= pack "C", 0x02;							# File type: directory
+	$msg .= $filename;
+	
+	# Send 0x0066 message
+	write_message(0x0066, $msg);
+    
+    # wait for 0x00 response:
+	my $rx = read_message();
+
+	if ($rx->{header}{id} != 0x0000)
+	{
+	    print "makedir $dir failed\n";
+	}
+    else
+    {
+	    print "makedir $dir ok\n";
+    }
+
+	send_close();
 }
 
 sub format_disk
