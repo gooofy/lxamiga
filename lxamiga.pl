@@ -1,11 +1,11 @@
 #!/usr/bin/perl -w
 #
 # Simple Linux client for CloanTo Amiga Explorer running on a Commodore Amiga
-# Version 2.00 - 01/09/2019
+# Version 2.02 - 2019/09/14
 #
 # by Mark Street <marksmanuk@gmail.com>
 #
-# re-sync support, baudrate option added by G. Bartsch
+# re-sync support, directory creation, rename, baudrate option added by G. Bartsch
 #
 # Example usage:
 # 	lxamiga -l
@@ -45,10 +45,11 @@ my $usage = "lxamiga by Mark Street <marksmanuk\@gmail.com>\n\nUsage: lxamiga [o
 	"\t-s send file <file> <device:volume/path>\n".
 	"\t-u <file> delete file\n".
 	"\t-m <dir> mkdir\n".
+	"\t-R <oldname> <newname> rename file\n".
 	"\t-f <device> Name format disk\n".
 	"\t-w <file> write output to filename\n".
 	"\t-v Verbose\n";
-getopts("tld:r:s:u:f:w:vb:m:", \%args) || die $usage;
+getopts("tld:r:s:u:f:w:vb:m:R:", \%args) || die $usage;
 
 if ($args{b})
 {
@@ -64,6 +65,7 @@ put_file($args{s}, $ARGV[0])    if $args{s};
 del_file($args{u})              if $args{u};
 make_dir($args{m})              if $args{m};
 format_disk($args{f})           if $args{f};
+rename_file($args{R}, $ARGV[0]) if $args{R};
 finalise();
 
 sub Dump
@@ -773,6 +775,33 @@ sub make_dir
     {
 	    print "makedir $dir ok\n";
     }
+
+	send_close();
+}
+
+sub rename_file
+{
+	my $oldname = shift || die "Unspecified oldname";
+	my $newname = shift	|| die "Unspecified newname";
+
+	print "renaming $oldname to $newname\n";
+
+	# Construct message:
+    my $msg = $oldname;
+    $msg .= pack "C", 0x00;
+    $msg .= $newname;
+    $msg .= pack "C", 0x00;
+	
+	# Send 0x0068 message
+	write_message(0x0068, $msg);
+
+    # wait for 0x00 response:
+	my $rx = read_message();
+
+	if ($rx->{header}{id} != 0x0000)
+	{
+	    print "rename failed\n";
+	}
 
 	send_close();
 }
