@@ -47,10 +47,11 @@ my $usage = "lxamiga by Mark Street <marksmanuk\@gmail.com>\n\nUsage: lxamiga [o
 	"\t-m <dir> mkdir\n".
 	"\t-R <oldname> <newname> rename file\n".
 	"\t-M <oldname> <newname> move file (works across devices)\n".
+	"\t-c <oldname> <newname> copy file\n".
 	"\t-f <device> Name format disk\n".
 	"\t-w <file> write output to filename\n".
 	"\t-v Verbose\n";
-getopts("tld:r:s:u:f:w:vb:m:R:M:", \%args) || die $usage;
+getopts("tld:r:s:u:f:w:vb:m:R:M:c:", \%args) || die $usage;
 
 if ($args{b})
 {
@@ -68,6 +69,7 @@ make_dir($args{m})              if $args{m};
 format_disk($args{f})           if $args{f};
 rename_file($args{R}, $ARGV[0]) if $args{R};
 move_file($args{M}, $ARGV[0])   if $args{M};
+copy_file($args{c}, $ARGV[0])   if $args{c};
 finalise();
 
 sub Dump
@@ -828,6 +830,33 @@ sub move_file
 	if ($rx->{header}{id} != 0x0000)
 	{
 	    print "move failed\n";
+	}
+
+	send_close();
+}
+
+sub copy_file
+{
+	my $oldname = shift || die "Unspecified oldname";
+	my $newname = shift	|| die "Unspecified newname";
+
+	print "copying $oldname to $newname\n";
+
+	# Construct message:
+    my $msg = $oldname;
+    $msg .= pack "C", 0x00;
+    $msg .= $newname;
+    $msg .= pack "C", 0x00;
+	
+	# Send 0x006a message
+	write_message(0x006a, $msg);
+
+    # wait for 0x00 response:
+	my $rx = read_message();
+
+	if ($rx->{header}{id} != 0x0000)
+	{
+	    print "copy failed\n";
 	}
 
 	send_close();
