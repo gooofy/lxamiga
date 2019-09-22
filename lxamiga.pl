@@ -48,10 +48,11 @@ my $usage = "lxamiga by Mark Street <marksmanuk\@gmail.com>\n\nUsage: lxamiga [o
 	"\t-R <oldname> <newname> rename file\n".
 	"\t-M <oldname> <newname> move file (works across devices)\n".
 	"\t-c <oldname> <newname> copy file\n".
+	"\t-a <file> <attrs> <comment> set file attrs and comment\n".
 	"\t-f <device> Name format disk\n".
 	"\t-w <file> write output to filename\n".
 	"\t-v Verbose\n";
-getopts("tld:r:s:u:f:w:vb:m:R:M:c:", \%args) || die $usage;
+getopts("tld:r:s:u:f:w:vb:m:R:M:c:a::", \%args) || die $usage;
 
 if ($args{b})
 {
@@ -60,16 +61,17 @@ if ($args{b})
 
 initialise();
 get_connect();
-get_devices()                   if $args{l};
-get_directory($args{d})	        if $args{d};
-get_file($args{r}, $ARGV[0])    if $args{r};
-put_file($args{s}, $ARGV[0])    if $args{s};
-del_file($args{u})              if $args{u};
-make_dir($args{m})              if $args{m};
-format_disk($args{f})           if $args{f};
-rename_file($args{R}, $ARGV[0]) if $args{R};
-move_file($args{M}, $ARGV[0])   if $args{M};
-copy_file($args{c}, $ARGV[0])   if $args{c};
+get_devices()                           if $args{l};
+get_directory($args{d})	                if $args{d};
+get_file($args{r}, $ARGV[0])            if $args{r};
+put_file($args{s}, $ARGV[0])            if $args{s};
+del_file($args{u})                      if $args{u};
+make_dir($args{m})                      if $args{m};
+format_disk($args{f})                   if $args{f};
+rename_file($args{R}, $ARGV[0])         if $args{R};
+move_file($args{M}, $ARGV[0])           if $args{M};
+copy_file($args{c}, $ARGV[0])           if $args{c};
+attr_file($args{a}, $ARGV[0], $ARGV[1]) if $args{a};
 finalise();
 
 sub Dump
@@ -857,6 +859,35 @@ sub copy_file
 	if ($rx->{header}{id} != 0x0000)
 	{
 	    print "copy failed\n";
+	}
+
+	send_close();
+}
+
+sub attr_file
+{
+	my $filename = shift || die "Unspecified filename";
+	my $attrs = shift	|| die "Unspecified attrs";
+	my $comment = shift	|| die "Unspecified comment";
+
+	print "attrs $filename: attrs=$attrs, comment: $comment\n";
+
+	# Construct message:
+    my $msg = pack "N", int($attrs);
+    $msg .= $filename;
+    $msg .= pack "C", 0x00;
+    $msg .= $comment;
+    $msg .= pack "C", 0x00;
+	
+	# Send 0x006b message
+	write_message(0x006b, $msg);
+
+    # wait for 0x00 response:
+	my $rx = read_message();
+
+	if ($rx->{header}{id} != 0x0000)
+	{
+	    print "attrs failed\n";
 	}
 
 	send_close();
