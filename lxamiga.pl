@@ -46,10 +46,11 @@ my $usage = "lxamiga by Mark Street <marksmanuk\@gmail.com>\n\nUsage: lxamiga [o
 	"\t-u <file> delete file\n".
 	"\t-m <dir> mkdir\n".
 	"\t-R <oldname> <newname> rename file\n".
+	"\t-M <oldname> <newname> move file (works across devices)\n".
 	"\t-f <device> Name format disk\n".
 	"\t-w <file> write output to filename\n".
 	"\t-v Verbose\n";
-getopts("tld:r:s:u:f:w:vb:m:R:", \%args) || die $usage;
+getopts("tld:r:s:u:f:w:vb:m:R:M:", \%args) || die $usage;
 
 if ($args{b})
 {
@@ -66,6 +67,7 @@ del_file($args{u})              if $args{u};
 make_dir($args{m})              if $args{m};
 format_disk($args{f})           if $args{f};
 rename_file($args{R}, $ARGV[0]) if $args{R};
+move_file($args{M}, $ARGV[0])   if $args{M};
 finalise();
 
 sub Dump
@@ -261,14 +263,12 @@ sub write_socket
 
 sub write_ack
 {
-	write_serial("PkOk") if defined $serial;
-	write_socket("PkOk") if defined $socket;
+	write_port("PkOk");
 }
 
 sub write_not_ack
 {
-	write_serial("PkRs") if defined $serial;
-	write_socket("PkRs") if defined $socket;
+	write_port("PkRs");
 }
 
 sub read_message
@@ -801,6 +801,33 @@ sub rename_file
 	if ($rx->{header}{id} != 0x0000)
 	{
 	    print "rename failed\n";
+	}
+
+	send_close();
+}
+
+sub move_file
+{
+	my $oldname = shift || die "Unspecified oldname";
+	my $newname = shift	|| die "Unspecified newname";
+
+	print "moving $oldname to $newname\n";
+
+	# Construct message:
+    my $msg = $oldname;
+    $msg .= pack "C", 0x00;
+    $msg .= $newname;
+    $msg .= pack "C", 0x00;
+	
+	# Send 0x0069 message
+	write_message(0x0069, $msg);
+
+    # wait for 0x00 response:
+	my $rx = read_message();
+
+	if ($rx->{header}{id} != 0x0000)
+	{
+	    print "move failed\n";
 	}
 
 	send_close();
